@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-iot-table-job
+  namespace: event
+spec:
+  template:
+    spec:
+      containers:
+      - name: create-iot-table
+        image: postgres:13
+        env:
+        - name: DB_NAME
+          value: "datadb"
+        - name: DB_USER
+          value: "admin"
+        - name: DB_PASSWORD
+          value: "admin"
+        - name: DB_HOST
+          value: "postgres-iot-service"
+        command: ["sh", "-c"]
+        args:
+        - |
+          PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "
+          CREATE TABLE IF NOT EXISTS data (
+              data_id SERIAL PRIMARY KEY,
+              device_id UUID,
+              timestamp TIMESTAMP,
+              data_type VARCHAR(100) NOT NULL,
+              value NUMERIC NOT NULL
+          );"
+      restartPolicy: Never
+  backoffLimit: 4

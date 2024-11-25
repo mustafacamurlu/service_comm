@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alarm-service
+  namespace: rest
+  labels:
+    app: alarm-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alarm-service
+  template:
+    metadata:
+      labels:
+        app: alarm-service
+    spec:
+      containers:
+      - name: alarm-service
+        image: alarm_service:1
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DB_HOST
+          value: "postgres-alarm-service"
+        - name: DB_NAME
+          value: "alarmdb"
+        - name: DB_USER
+          value: "admin"
+        - name: DB_PASSWORD
+          value: "admin"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alarm-service
+  namespace: rest
+  labels:
+    app: alarm-service
+spec:
+  selector:
+    app: alarm-service
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-alarm
+  namespace: rest
+  labels:
+    app: postgres-alarm
+spec:
+  serviceName: "postgres-alarm-service"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-alarm
+  template:
+    metadata:
+      labels:
+        app: postgres-alarm
+    spec:
+      containers:
+      - name: postgres-alarm
+        image: postgres:13
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "alarmdb"
+        - name: POSTGRES_USER
+          value: "admin"
+        - name: POSTGRES_PASSWORD
+          value: "admin"
+        volumeMounts:
+        - name: postgres-alarm-storage
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-alarm-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-alarm-service
+  namespace: rest
+  labels:
+    app: postgres-alarm
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: postgres-alarm
+  type: ClusterIP

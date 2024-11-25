@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rule-service
+  namespace: rest
+  labels:
+    app: rule-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rule-service
+  template:
+    metadata:
+      labels:
+        app: rule-service
+    spec:
+      containers:
+      - name: rule-service
+        image: rule_service:1
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DB_HOST
+          value: "postgres-rule-service"
+        - name: DB_NAME
+          value: "rulesdb"
+        - name: DB_USER
+          value: "admin"
+        - name: DB_PASSWORD
+          value: "admin"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rule-service
+  namespace: rest
+  labels:
+    app: rule-service
+spec:
+  selector:
+    app: rule-service
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-rule
+  namespace: rest
+  labels:
+    app: postgres-rule
+spec:
+  serviceName: "postgres-rule-service"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-rule
+  template:
+    metadata:
+      labels:
+        app: postgres-rule
+    spec:
+      containers:
+      - name: postgres-rule
+        image: postgres:13
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "rulesdb"
+        - name: POSTGRES_USER
+          value: "admin"
+        - name: POSTGRES_PASSWORD
+          value: "admin"
+        volumeMounts:
+        - name: postgres-rule-storage
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-rule-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-rule-service
+  namespace: rest
+  labels:
+    app: postgres-rule
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: postgres-rule
+  type: ClusterIP

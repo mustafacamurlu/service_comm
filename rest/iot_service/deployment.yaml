@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iot-service
+  namespace: rest
+  labels:
+    app: iot-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iot-service
+  template:
+    metadata:
+      labels:
+        app: iot-service
+    spec:
+      containers:
+      - name: iot-service
+        image: iot_service:1
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DB_HOST
+          value: "postgres-iot-service"
+        - name: DB_NAME
+          value: "datadb"
+        - name: DB_USER
+          value: "admin"
+        - name: DB_PASSWORD
+          value: "admin"
+        - name: RULE_SERVICE_URL
+          value: "http://rule-service:8080/get_rules"
+        - name: ALARM_SERVICE_URL
+          value: "http://alarm-service:8080/add_alarm"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-service
+  namespace: rest
+  labels:
+    app: iot-service
+spec:
+  selector:
+    app: iot-service
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 30081
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-iot
+  namespace: rest
+  labels:
+    app: postgres-iot
+spec:
+  serviceName: "postgres-iot-service"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-iot
+  template:
+    metadata:
+      labels:
+        app: postgres-iot
+    spec:
+      containers:
+      - name: postgres-iot
+        image: postgres:13
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "datadb"
+        - name: POSTGRES_USER
+          value: "admin"
+        - name: POSTGRES_PASSWORD
+          value: "admin"
+        volumeMounts:
+        - name: postgres-iot-storage
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-iot-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-iot-service
+  namespace: rest
+  labels:
+    app: postgres-iot
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: postgres-iot
+  type: ClusterIP

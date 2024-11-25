@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: event
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iot-service
+  namespace: event
+  labels:
+    app: iot-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iot-service
+  template:
+    metadata:
+      labels:
+        app: iot-service
+    spec:
+      containers:
+      - name: iot-service
+        image: iot_service:1
+        ports:
+        - containerPort: 8080
+        env:
+        - name: RABBITMQ_BROKER
+          value: "rabbitmq-service"
+        - name: RABBITMQ_USER
+          value: "guest"
+        - name: RABBITMQ_PASS
+          value: "guest"
+        - name: QUEUE
+          value: "data-stream"
+        - name: DATA_CHANGE_QUEUE
+          value: "data-change"
+        - name: DB_NAME
+          value: "datadb"
+        - name: DB_USER
+          value: "admin"
+        - name: DB_PASSWORD
+          value: "admin"
+        - name: DB_HOST
+          value: "postgres-iot-service"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-service-service
+  namespace: event
+  labels:
+    app: iot-service
+spec:
+  selector:
+    app: iot-service
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 30082
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-iot
+  namespace: event
+  labels:
+    app: postgres-iot
+spec:
+  serviceName: "postgres-iot-service"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-iot
+  template:
+    metadata:
+      labels:
+        app: postgres-iot
+    spec:
+      containers:
+      - name: postgres-iot
+        image: postgres:13
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "datadb"
+        - name: POSTGRES_USER
+          value: "admin"
+        - name: POSTGRES_PASSWORD
+          value: "admin"
+        volumeMounts:
+        - name: postgres-iot-storage
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-iot-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-iot-service
+  namespace: event
+  labels:
+    app: postgres-iot
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: postgres-iot
+  type: ClusterIP
