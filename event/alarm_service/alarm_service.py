@@ -12,7 +12,7 @@ import sys
 
 app = FastAPI()
 
-RULE_SERVICE_URL = 'http://rule-service/get_rules'
+RULE_SERVICE_URL = 'http://rule-service:8080/get_rules'
 
 def get_db_connection():
     return psycopg2.connect(
